@@ -1,141 +1,129 @@
 import numpy as np
 import random
 
-SPEED_LIM = 20
-EYESIGHT = 50
+# general
+MAXSPEED = 20
+MINSPEED = 5
+EYESIGHT = 75
 
-# separation rule vars
-AVOID_DIST = 20
-SEPARATION_STRENGTH = 0.05
+# separation
+SEPARATION_FACTOR = 0.05
+MIN_DIST = 20
 
-# alignment rule vars
-ALIGN_STRENGTH = 0.05
+# alignment
+ALIGNMENT_FACTOR = 0.05
 
-# cohesion rule vars
-COHESION_STRENGTH = 0.01
+# cohesion
+COHESION_FACTOR = 0.005
 
-class Boid:
-    def __init__(self, x=0, y=0, dx=0, dy=0):
-        self.x = x
-        self.y = y
-        
-        self.newx = x
-        self.newy = y
-        
-        self.dx = dx
-        self.dy = dy
-        
-    @property
-    def theta(self):
-        return np.arctan(self.dx/self.dy)
-    
-    def __iter__(self):
-        return self
-        
-    def __next__(self):     
-        # move boid
-        self.x = self.newx
-        self.y = self.newy
-        
-        return self
-    
-    def init_next(self, dimensions=[500, 500]):
-        self.newx = self.x + self.dx
-        self.newy = self.y + self.dy
-        
-        manage_overlap(self, dimensions)
-    
-    def apply_rules(self, boids=[], dimensions=[500, 500]):
-        self.separation()
-        self.alignment()
-        self.cohesion()        
-        self.limit_speed()
-        
-    def separation(self, boids=[]):
-        changex = 0
-        changey = 0
+# bounds
+MARGIN = 50
+TURNFACTOR = 1
 
-        for b in boids:
-            if not b == self:
-                if dist(self, b) <= AVOID_DIST:
-                    changex += self.x - b.x
-                    changey += self.y - b.y
-        
-        self.dx += changex * SEPARATION_STRENGTH
-        self.dy += changey * SEPARATION_STRENGTH
-    
-    def alignment(self, boids=[]):
-        averagex = 0
-        averagey = 0
-        num = 0
-        
-        for b in boids:
-            if not b == self:
-                if dist(self, b) <= EYESIGHT:
-                    num += 1
-                    
-                    averagex += b.dx
-                    averagey += b.dy
-        
-        if not num:
-            return
-        
-        self.dx += averagex/num * ALIGN_STRENGTH
-        self.dy += averagey/num * ALIGN_STRENGTH
-    
-    def cohesion(self, boids=[]):
-        centrex = 0
-        centrey = 0
-        num = 0
+def dist(a: float, b: float) -> float:
+    return ((a ** 2) + (b ** 2)) ** 0.5
 
-        for b in boids:
-            if not self == b:
-                if dist(self, b) <= EYESIGHT:
-                    num += 1
-                    
-                    centrex += b.x
-                    centrey += b.y
-                    
-        if not num:
-            return
-        
-        self.dx += centrex/num * COHESION_STRENGTH
-        self.dy += centrey/num * COHESION_STRENGTH
-    
-    def limit_speed(self):
-        speed = ((self.dx ** 2) + (self.dy ** 2)) ** 0.5
-        
-        if speed >= SPEED_LIM:
-            self.dx = self.dx/speed * SPEED_LIM
-            self.dy = self.dy/speed * SPEED_LIM
-        
-def init_boids(amount=10, dimensions=[500, 500]):
+def init_boids(num: int, dimensions: list) -> list:
     boids = []
     
-    for _ in range(amount):
+    for _ in range(num):
         boids.append(
             Boid(
                 random.random() * dimensions[0],
                 random.random() * dimensions[1],
-                random.random() * 10,
-                random.random() * 10
-                )
+                random.random() * MAXSPEED - 0.5 * MAXSPEED,
+                random.random() * MAXSPEED - 0.5 * MAXSPEED,
+            )
         )
         
     return boids
 
-def manage_overlap(boid, dimensions=[500, 500]):
-    if boid.newx <= 0:
-        boid.newx = dimensions[0]
+class Boid:
+    def __init__(self, x: float, y: float, dx: float, dy: float):
+        self.x = x
+        self.y = y
         
-    if boid.newx >= dimensions[0]:
-        boid.newx = 0
+        self.dx = dx
+        self.dy = dy
         
-    if boid.newy <= 0:
-        boid.newy = dimensions[1]
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        self.x += self.dx
+        self.y += self.dy
         
-    if boid.newy >= dimensions[1]:
-        boid.newy = 0
+        return self
+    
+    def separation(self, boids: list):
+        move_x = 0
+        move_y = 0
         
-def dist(a, b):
-    return ((a.x - b.x)**2 + (a.y - b.y)**2) ** 0.5
+        for b in boids:
+            if not self == b:
+                if dist(self.x - b.x, self.y - b.y) < MIN_DIST:
+                    move_x += self.x - b.x
+                    move_y += self.y - b.y
+                    
+        self.dx += move_x * SEPARATION_FACTOR
+        self.dy += move_y * SEPARATION_FACTOR
+    
+    def alignment(self, boids: list):
+        mean_dx = 0
+        mean_dy = 0
+        
+        num = 0
+        
+        for b in boids:
+            if dist(self.x - b.x, self.y - b.y) < EYESIGHT:
+                mean_dx += b.dx
+                mean_dy += b.dy
+
+                num += 1
+                
+        if num:
+            self.dx += ((mean_dx / num) - self.dx) * ALIGNMENT_FACTOR
+            self.dy += ((mean_dy / num) - self.dy) * ALIGNMENT_FACTOR
+    
+    def cohesion(self, boids: list):
+        centre_x = 0
+        centre_y = 0
+        
+        num = 0
+        
+        for b in boids:
+            if dist(self.x - b.x, self.y - b.y) < EYESIGHT:
+                centre_x += b.x
+                centre_y += b.y
+                
+                num += 1
+        
+        if num:
+            self.dx += ((centre_x / num) - self.x) * COHESION_FACTOR
+            self.dy += ((centre_y / num) - self.y) * COHESION_FACTOR
+    
+    def limspeed(self):
+        speed = dist(self.dx, self.dy)
+        
+        if speed > MAXSPEED:
+            self.dx *= MAXSPEED / speed
+            self.dy *= MAXSPEED / speed
+            
+        elif speed < MINSPEED:
+            self.dx *= MINSPEED / speed
+            self.dy *= MINSPEED / speed
+    
+    def enforce_bounds(self, dimensions: list, crossover: bool):
+        #######crossover
+        assert all(i > 2 * MARGIN for i in dimensions)
+        
+        if self.x < MARGIN:
+            self.dx += TURNFACTOR
+        elif self.x > dimensions[0] - MARGIN:
+            self.dx -= TURNFACTOR
+            
+        if self.y < MARGIN:
+            self.dy += TURNFACTOR
+        elif self.y > dimensions[1] - MARGIN:
+            self.dy -= TURNFACTOR
+    
