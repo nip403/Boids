@@ -2,52 +2,45 @@ import pygame
 import numpy as np
 import sys
 
-pygame.init()
-
+FPS = 60
 BG_COLOUR = (0, 0, 0)
 BOID_COLOUR = (255, 255, 255)
 
-BOID_LENGTH = 20
+pygame.init()
 
-def plot_boid(boid):
-    x = boid.x
-    y = boid.y
-    a = boid.theta
-    
-    # initialise boid shape
-    points = [
-        [0, BOID_LENGTH/2], 
-        [-BOID_LENGTH/4, -BOID_LENGTH/2], 
-        [BOID_LENGTH/4, -BOID_LENGTH/2],
-    ]
-    
-    # rotate and translate
-    for p in points:
-        p[:] = [
-            (p[0] * np.cos(a)) - (p[1] * np.sin(a)) + x,
-            (p[0] * np.sin(a)) + (p[1] * np.cos(a)) + y,
-        ]
-
-    return points
-
-class Window:
-    def __init__(self, width, height):
-        self.dimensions = [width, height]
-        self.scr = pygame.display.set_mode(self.dimensions)
+class Demo:
+    def __init__(self, dimensions: list):
+        self.dim = dimensions
+        self.boids = []
+        self.window = pygame.display.set_mode(self.dim, 0, 32)
         self.clock = pygame.time.Clock()
         
-        pygame.display.set_caption("Boids demo")
+        pygame.display.set_caption("Boids Demo")
         
-    def update(self, boids=[]):
-        self.scr.fill(BG_COLOUR)
+    def update_boids(self, boids: list):
+        self.boids = boids
         
-        for b in boids:
-            pygame.draw.polygon(
-                self.scr,
-                BOID_COLOUR,
-                plot_boid(b),
-                1,
-           )
+    def sim(self):
+        while True:
+            self.clock.tick(FPS)
             
-        pygame.display.flip()
-    
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                    
+            self.window.fill(BG_COLOUR)
+            
+            for b in self.boids:
+                pygame.draw.circle(self.window, BOID_COLOUR, (b.x, b.y), 5, 0)
+                
+                b.cohesion(self.boids)
+                b.separation(self.boids)
+                b.alignment(self.boids)
+                b.limspeed()
+                b.enforce_bounds(self.dim, False)
+                
+            for b in self.boids:
+                next(b)
+                
+            pygame.display.flip()
